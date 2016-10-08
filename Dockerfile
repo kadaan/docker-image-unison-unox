@@ -2,7 +2,8 @@ FROM alpine:edge
 # This is the real maintainer
 # MAINTAINER Onni Hakala <onni.hakala@geniem.com>
 # MAINTAINER Mickaël Perrin <dev@mickaelperrin.fr>
-MAINTAINER Eugen Mayer <eugen.mayer@kontextwork.com>
+# MAINTAINER Eugen Mayer <eugen.mayer@kontextwork.com>
+MAINTAINER kadaan
 
 ARG UNISON_VERSION=2.48.4
 RUN apk add --no-cache build-base curl bash supervisor inotify-tools && \
