@@ -13,7 +13,32 @@ if [ "$1" == 'supervisord' ]; then
 
     [ -z $UNISON_OWNER ] && export UNISON_OWNER="unison"
 
+    [ -z $UNISON_GROUP ] && export UNISON_GROUP="unison"
+
     export UNISON_OWNER_HOMEDIR=/home/$UNISON_OWNER
+
+    if [ ! -z $UNISON_OWNER_GID ]; then
+
+        # If gid doesn't exist on the system
+        if ! cut -d: -f3 /etc/group | grep -q $UNISON_OWNER_GID; then
+            echo "no group has gid $UNISON_OWNER_GID"
+
+            # If group doesn't exist on the system
+            if ! cut -d: -f1 /etc/group | grep -q $UNISON_GROUP; then
+                groupadd -g $UNISON_OWNER_GID $UNISON_GROUP
+            else
+                groupmod -g $UNISON_OWNER_GID $UNISON_GROUP
+            fi
+        fi
+    else
+        if ! id $UNISON_GROUP; then
+            echo "adding group $UNISON_GROUP".
+            groupadd $UNISON_GROUP
+        else
+            echo "group $UNISON_GROUP already exists".
+        fi
+        UNISON_OWNER_GID=$(awk -F: "/$UNISON_GROUP:/{print \$3}" /etc/group)
+    fi
 
     if [ ! -z $UNISON_OWNER_UID ]; then
 
@@ -23,27 +48,30 @@ if [ "$1" == 'supervisord' ]; then
 
             # If user doesn't exist on the system
             if ! cut -d: -f1 /etc/passwd | grep -q $UNISON_OWNER; then
-                useradd -u $UNISON_OWNER_UID $UNISON_OWNER -m
+                useradd -u $UNISON_OWNER_UID -g $UNISON_OWNER_GID $UNISON_OWNER -m
             else
-                usermod -u $UNISON_OWNER_UID $UNISON_OWNER
+                usermod -u $UNISON_OWNER_UID -g $UNISON_OWNER_GID $UNISON_OWNER
             fi
         else
             echo "user with uid $UNISON_OWNER_UID already exist"
-            existing_user_with_uid=$(awk -F: "/:$UNISON_OWNER_UID:/{print \$1}" /etc/passwd)
+            existing_user_with_uid=$(awk -v val=$UNISON_OWNER_UID -F ":" '$3==val{print $1}' /etc/passwd)
             mkdir -p /home/$UNISON_OWNER
-            usermod --home /home/$UNISON_OWNER --login $UNISON_OWNER $existing_user_with_uid
+            usermod -g $UNISON_OWNER_GID --home /home/$UNISON_OWNER --login $UNISON_OWNER $existing_user_with_uid
             chown -R $UNISON_OWNER /home/$UNISON_OWNER
+            chgrp -R $UNISON_GROUP /home/$UNISON_OWNER
         fi
     else
         if ! id $UNISON_OWNER; then
-            echo "adding user $UNISON_OWNNER".
-            useradd -m $UNISON_OWNER
+            echo "adding user $UNISON_OWNER".
+            useradd -m $UNISON_OWNER -g $UNISON_OWNER_GID
         else
-            echo "user $UNISON_OWNNER already exists".
+            echo "user $UNISON_OWNER already exists".
+            usermod -g $UNISON_OWNER_GID $UNISON_OWNER
         fi
     fi
 
     chown -R $UNISON_OWNER $UNISON_DIR
+    chgrp -R $UNISON_GROUP $UNISON_DIR
 
     # see https://wiki.alpinelinux.org/wiki/Setting_the_timezone
     if [ -n ${TZ} ] && [ -f /usr/share/zoneinfo/${TZ} ]; then
